@@ -1,266 +1,189 @@
-# Notification Management System
+# Notification System
 
-A simple yet powerful notification management system built with **Express.js**. This backend service manages user notifications with multi-tenant support, persistent storage, and real-time notification tracking.
+A full-stack, tenant-aware notification system for an AI-native CRM platform. Backend API (Express + SQLite), React frontend with a notification bell UI, and trigger scripts to simulate real-world events.
 
-## Features
+## Quick Start
 
-- ✅ **Multi-tenant Support** - Isolate notifications by tenant ID
-- ✅ **User-Specific Notifications** - Send notifications to individual users or broadcast to all users in a tenant
-- ✅ **Read Status Tracking** - Mark notifications as read individually or in bulk
-- ✅ **Unread Count API** - Get quick count of unread notifications
-- ✅ **Persistent Storage** - Store notifications in JSON file
-- ✅ **Demo Event Generation** - Auto-generate demo notifications for testing
-- ✅ **RESTful API** - Easy-to-use HTTP endpoints
-- ✅ **Static Frontend Serving** - Serves frontend files automatically
+### Prerequisites
+- **Node.js** 18+ (for built-in `fetch` and test runner)
+- **npm** 9+
 
-## Tech Stack
+### Setup & Run
 
-- **Runtime**: Node.js
-- **Framework**: Express.js
-- **Storage**: JSON File-based database
-- **Port**: 3000 (configurable via `PORT` environment variable)
+```bash
+# 1. Install all dependencies (root + server + client)
+npm run install:all
+
+# 2. Start both server and client
+npm run dev
+```
+
+This starts:
+- **Backend** at `http://localhost:4000`
+- **Frontend** at `http://localhost:5173`
+
+The database is seeded automatically on startup with 4 sample notifications.
+
+### Run Tests
+
+```bash
+npm test
+```
+
+Runs 16 tenant isolation tests verifying that users in one tenant cannot see, count, or mark-as-read notifications belonging to another tenant.
+
+### Run Trigger Script (optional)
+
+With the server running:
+
+```bash
+# Run both triggers (invite + reply)
+node triggers/simulate.js
+
+# Run just one
+node triggers/simulate.js invite
+node triggers/simulate.js reply
+```
+
+---
+
+## Architecture
+
+### Current Local Architecture
+
+```
+┌─────────────────────────────────────────┐
+│            Frontend (React/Vite)         │
+│  ┌───────────┐  ┌────────────────────┐  │
+│  │ Bell Icon  │  │ Notification Panel │  │
+│  │ + Badge    │  │ (list, mark read)  │  │
+│  └───────────┘  └────────────────────┘  │
+│       │ Poll 15s        │ API calls      │
+└───────┼────────────────┼────────────────┘
+        │                │
+┌───────▼────────────────▼────────────────┐
+│           Backend (Express)              │
+│  POST /notifications     (create)        │
+│  GET  /notifications     (list)          │
+│  GET  /notifications/unread-count        │
+│  PATCH /notifications/:id/read           │
+│  PATCH /notifications/read-all           │
+│  POST /triggers/invite   (demo)          │
+│  POST /triggers/reply    (demo)          │
+│                                          │
+│  Auth: X-Tenant-Id + X-User-Id headers   │
+│  DB:   SQLite (sql.js)                   │
+└──────────────────────────────────────────┘
+```
+
+### Cloud Deployment Architecture (Planned)
+
+We are currently planning to migrate this local setup to a **100% free cloud stack**:
+
+1. **Frontend:** Hosted on [Vercel](https://vercel.com).
+2. **Backend:** Hosted on [Render](https://render.com).
+3. **Database:** Migrating from local `sql.js` to [Turso](https://turso.tech) (Remote SQLite) for data persistence across cloud deployments.
+
+*Note: The codebase will be updated to decouple the frontend/backend and support this cloud architecture.*
+
+### Auth Convention
+
+Every API request must include two headers:
+- `X-Tenant-Id` — scopes data to one organization
+- `X-User-Id` — identifies the calling user
+
+This is a simplified stand-in for JWT-based auth. The frontend includes an identity switcher dropdown to test different tenant/user combinations.
+
+### Tenant Isolation
+
+Every database query includes `tenant_id = ?` as a filter, ensuring:
+- A user in tenant A never sees tenant B's notifications
+- A user in tenant A cannot mark tenant B's notifications as read (returns 404)
+- Unread counts and mark-all-read only affect the caller's tenant
+
+---
 
 ## Project Structure
 
 ```
-backend/
-├── server.js                          # Main application entry point
-├── package.json                       # Dependencies and metadata
-├── controllers/
-│   └── notificationsController.js    # Request handlers for notification endpoints
-├── routes/
-│   └── notifications.js               # API route definitions
-├── services/
-│   └── notificationService.js         # Business logic for notifications
-└── data/
-    └── notifications.json             # Persistent notification storage
+├── package.json              Root: concurrently runs server + client
+├── README.md                 This file
+├── INTEGRATION_WRITEUP.md    Integration write-up + future improvements
+│
+├── server/
+│   ├── package.json
+│   └── src/
+│       ├── index.js          Express entry point
+│       ├── db.js             SQLite setup + seed data
+│       ├── middleware/
+│       │   └── auth.js       Header-based auth (stand-in for JWT)
+│       ├── routes/
+│       │   ├── notifications.js   5 notification endpoints
+│       │   └── triggers.js        Trigger demo endpoints
+│       └── tests/
+│           └── tenant-isolation.test.js   16 automated tests
+│
+├── client/
+│   ├── package.json
+│   ├── vite.config.js        Vite + API proxy config
+│   ├── index.html
+│   └── src/
+│       ├── main.jsx          React entry point
+│       ├── App.jsx           Main layout + identity switcher
+│       ├── index.css         Design system (dark mode, glassmorphism)
+│       ├── api/
+│       │   └── notifications.js   API client
+│       ├── hooks/
+│       │   └── useNotifications.js  State management + polling
+│       ├── components/
+│       │   ├── NotificationBell.jsx
+│       │   ├── NotificationPanel.jsx
+│       │   ├── NotificationItem.jsx
+│       │   └── TriggerPanel.jsx
+│       └── utils/
+│           └── timeAgo.js
+│
+└── triggers/
+    └── simulate.js           CLI trigger script
 ```
 
-## Installation
-
-1. **Clone or navigate to the project directory**:
-   ```bash
-   cd backend
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Start the server**:
-   ```bash
-   npm start
-   ```
-
-The server will run on `http://localhost:3000`
+---
 
 ## API Endpoints
 
-### Create a Notification
-**POST** `/notifications`
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/notifications` | Create a notification |
+| `GET` | `/notifications?page=1&limit=20` | List visible notifications (paginated, unread first) |
+| `GET` | `/notifications/unread-count` | Unread count for badge |
+| `PATCH` | `/notifications/:id/read` | Mark one as read |
+| `PATCH` | `/notifications/read-all` | Mark all visible as read |
+| `POST` | `/triggers/invite` | Demo: simulate team member invite |
+| `POST` | `/triggers/reply` | Demo: simulate creator reply |
+| `GET` | `/health` | Health check (no auth) |
 
-Creates a new notification for a specific user or broadcasts to all users in a tenant.
+### Example Request
 
-**Request Headers**:
-- `x-tenant-id`: Tenant identifier (default: `t1`)
-- `x-user-id`: User identifier (default: `u1`)
-
-**Request Body**:
-```json
-{
-  "tenantId": "t1",
-  "userId": null,
-  "type": "custom_event",
-  "title": "Notification Title",
-  "body": "Notification message content"
-}
-```
-
-**Response**:
-```json
-{
-  "id": "n1234567890",
-  "tenantId": "t1",
-  "userId": null,
-  "type": "custom_event",
-  "title": "Notification Title",
-  "body": "Notification message content",
-  "read": false,
-  "createdAt": "2026-07-06T10:30:00.000Z"
-}
-```
-
-### Get All Notifications
-**GET** `/notifications`
-
-Retrieves all notifications for the current user/tenant with unread items appearing first.
-
-**Query Parameters**: None
-
-**Response**:
-```json
-[
-  {
-    "id": "n1234567890",
-    "tenantId": "t1",
-    "userId": "u1",
-    "type": "member_joined",
-    "title": "New Member Joined",
-    "body": "John Doe joined your community",
-    "read": false,
-    "createdAt": "2026-07-06T10:30:00.000Z"
-  }
-]
-```
-
-### Get Unread Count
-**GET** `/notifications/unread-count`
-
-Returns the count of unread notifications for the current user/tenant.
-
-**Response**:
-```json
-{
-  "count": 5
-}
-```
-
-### Mark Single Notification as Read
-**PATCH** `/notifications/:id/read`
-
-Marks a specific notification as read.
-
-**Response**:
-```json
-{
-  "id": "n1234567890",
-  "read": true
-}
-```
-
-### Mark All Notifications as Read
-**PATCH** `/notifications/read-all`
-
-Marks all unread notifications as read for the current user/tenant.
-
-**Response**:
-```json
-{
-  "updated": 5
-}
-```
-
-### Create Demo: Member Joined Event
-**POST** `/notifications/demo/member-joined`
-
-Creates a demo "member_joined" notification for testing purposes.
-
-### Create Demo: Creator Replied Event
-**POST** `/notifications/demo/creator-replied`
-
-Creates a demo "creator_replied" notification for testing purposes.
-
-## Multi-Tenant & User Headers
-
-The system uses custom headers to isolate data by tenant and user:
-
-- **`x-tenant-id`**: Identifies the tenant (defaults to `t1` if not provided)
-- **`x-user-id`**: Identifies the user within a tenant (defaults to `u1` if not provided)
-
-All requests should include these headers for proper multi-tenant isolation.
-
-**Example with cURL**:
 ```bash
-curl -X GET http://localhost:3000/notifications \
-  -H "x-tenant-id: tenant-123" \
-  -H "x-user-id: user-456"
+curl -X GET http://localhost:4000/notifications \
+  -H "X-Tenant-Id: t1" \
+  -H "X-User-Id: u1"
 ```
 
-## Data Structure
+---
 
-Notifications are stored in `data/notifications.json` with the following structure:
+## Seed Data
 
-```json
-{
-  "id": "n1234567890",
-  "tenantId": "t1",
-  "userId": "u1",
-  "type": "member_joined",
-  "title": "New Member Joined",
-  "body": "Someone new joined",
-  "read": false,
-  "createdAt": "2026-07-06T10:30:00.000Z"
-}
-```
+The database is seeded on startup with:
 
-## Auto-Generated Demo Events
+| ID | Tenant | User | Type | Read | Description |
+|----|--------|------|------|------|-------------|
+| n1 | t1 | null | member_invited | ❌ | Sarah joined Nova Talent |
+| n2 | t1 | u1 | new_reply | ❌ | Priya Sharma replied |
+| n3 | t1 | u1 | report_ready | ✅ | July campaign report ready |
+| n4 | t2 | null | member_invited | ❌ | James joined Bright Star Agency |
 
-The server automatically generates demo notifications every 30 seconds to simulate real-time activity. These events randomly alternate between:
-- `member_joined` - A new member joined the community
-- `creator_replied` - The creator replied to a comment
-
-## Environment Variables
-
-- **`PORT`**: Server port (default: `3000`)
-
-**Example**:
-```bash
-PORT=5000 npm start
-```
-
-## Usage Example
-
-### Using JavaScript/Fetch
-
-```javascript
-// Get notifications
-const response = await fetch('http://localhost:3000/notifications', {
-  headers: {
-    'x-tenant-id': 'tenant-123',
-    'x-user-id': 'user-456'
-  }
-});
-const notifications = await response.json();
-
-// Create a notification
-const newNotif = await fetch('http://localhost:3000/notifications', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-tenant-id': 'tenant-123',
-    'x-user-id': 'user-456'
-  },
-  body: JSON.stringify({
-    tenantId: 'tenant-123',
-    userId: 'user-456',
-    type: 'custom_event',
-    title: 'Hello',
-    body: 'This is a notification'
-  })
-});
-
-// Mark as read
-await fetch('http://localhost:3000/notifications/n1234567890/read', {
-  method: 'PATCH',
-  headers: {
-    'x-tenant-id': 'tenant-123',
-    'x-user-id': 'user-456'
-  }
-});
-```
-
-## Notes
-
-- Notifications are sorted by read status (unread first) and then by creation date (newest first)
-- Broadcast notifications (where `userId: null`) are visible to all users in a tenant
-- User-specific notifications are only visible to the specified user
-- The data file is automatically created on first run if it doesn't exist
-
-## License
-
-MIT
-
-## Support
-
-For issues or questions, please refer to the project documentation or create an issue in the repository.
+**Expected visibility:**
+- `t1/u1` sees: n1, n2, n3 (but never n4)
+- `t1/u2` sees: n1 only
+- `t2/*` sees: n4 only
