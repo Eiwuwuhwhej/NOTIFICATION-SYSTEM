@@ -187,3 +187,45 @@ The database is seeded on startup with:
 - `t1/u1` sees: n1, n2, n3 (but never n4)
 - `t1/u2` sees: n1 only
 - `t2/*` sees: n4 only
+
+---
+
+## How it Works
+
+The notification system consists of a backend API and a frontend React client.
+1. **Database**: A Turso (Remote SQLite) database stores notifications. Each notification has a `tenant_id` (organization) and an optional `user_id` (if the notification is directed to a specific person). If `user_id` is null, it's a team-wide notification.
+2. **Backend**: An Express API handles creating, fetching, and updating notifications. It enforces tenant isolation on every request by requiring `X-Tenant-Id` and `X-User-Id` headers.
+3. **Frontend**: The React app (built with Vite) periodically polls the backend every 15 seconds to fetch the latest unread notifications and the unread count. It displays these in a dropdown panel attached to a bell icon.
+4. **Triggers**: Events like "Team Member Invited" or "New Reply" can be fired from the UI or via scripts. These hit the `/triggers` endpoints, which then insert new rows into the notification table.
+
+---
+
+## Integration & Future Improvements
+
+*(Transitioning from a standalone full-stack app into a decoupled microservice)*
+
+### Part 1: Integration (Fitting into a Larger System)
+
+#### 1. Authentication & Identity
+**What changes:** The system currently trusts the `X-Tenant-Id` and `X-User-Id` headers implicitly. In a real system, we would place this notification service behind the company's existing API Gateway. The Gateway would validate the user's JWT, securely extract the `tenantId` and `userId`, and inject them into the headers before forwarding the request. The internal notification code remains entirely unchanged.
+
+#### 2. Event Triggers (Decoupling)
+**What changes:** We would introduce an asynchronous Message Broker (like RabbitMQ, Kafka, or AWS EventBridge). When an event occurs (e.g., a creator replies), the Messaging Service publishes a `CreatorReplied` event to the broker. Our Notification Service runs a background worker that subscribes to this topic, transforms the event into our standard Notification model, and saves it to the database. This ensures the core CRM doesn't crash if the notification database goes down.
+
+#### 3. Database Architecture
+**What stays:** We would keep the notifications in their own isolated table (or entirely separate database) to prevent notification queries from competing for resources with core CRM data. The strict composite indexing on `(tenantId, userId, read, createdAt)` would remain critical.
+
+### Part 2: What we would do differently with more time
+*(Technical and UX enhancements for a larger scale deployment)*
+
+#### 1. WebSockets / Server-Sent Events (SSE)
+Currently, the React client polls the server every 15 seconds. While functional, this wastes bandwidth when the system is idle. We would upgrade this to WebSockets (or SSE) to push events to the client instantly.
+
+#### 2. Cursor-Based Pagination
+The `GET /notifications` endpoint currently uses offset/limit pagination. For a system with thousands of historical notifications per user, this gets slow. We would refactor the query to use cursor-based pagination (e.g., `WHERE createdAt < last_seen_date`) for consistent performance.
+
+#### 3. Notification Grouping / Rollups
+If a user goes on vacation and 10 people reply to a campaign, the UI will show 10 separate rows. We would add a grouping engine to aggregate these into a single notification: *"Sarah and 9 others replied to your campaign"*, preventing notification fatigue.
+
+#### 4. Delivery Preferences
+We would introduce a `notification_preferences` table, allowing users to mute specific types (e.g., turn off "member_invited" alerts) or route them to different channels (Push, Email, Slack) instead of just in-app.
