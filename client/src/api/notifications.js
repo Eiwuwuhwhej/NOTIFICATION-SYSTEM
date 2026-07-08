@@ -1,5 +1,6 @@
-const API_BASE = "/notifications";
-const TRIGGER_BASE = "/triggers";
+const API_URL = import.meta.env.VITE_API_URL || "";
+const API_BASE = `${API_URL}/notifications`;
+const TRIGGER_BASE = `${API_URL}/triggers`;
 function authHeaders(tenantId, userId) {
   return {
     "Content-Type": "application/json",
