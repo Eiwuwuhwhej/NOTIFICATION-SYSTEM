@@ -2,6 +2,21 @@
 
 A full-stack, tenant-aware notification system for an AI-native CRM platform. Backend API (Express + SQLite), React frontend with a notification bell UI, and trigger scripts to simulate real-world events.
 
+### 🚀 Live Demo
+- **Frontend (Vercel):** [https://notification-system-taupe.vercel.app](https://notification-system-taupe.vercel.app)
+- **Backend API (Render):** [https://notification-system-backend-spxb.onrender.com](https://notification-system-backend-spxb.onrender.com)
+
+### 👥 Team Members
+- [Your Name/Role]
+- [Team Member 2 Name/Role]
+- [Team Member 3 Name/Role]
+
+### ✅ Challenge Deliverables Checklist
+- [x] **Runnable App**: Fully deployed cloud stack (see Live Demo) and local setup instructions below.
+- [x] **Tenant Isolation Tests**: Run `npm test` to see the 16 security tests proving tenant boundaries.
+- [x] **Integration Write-up**: See "Integration & Future Improvements" below (also accessible via the UI in the Live Demo).
+- [x] **Future Improvements**: Documented below, addressing choices made given the 7-day time budget.
+
 ## Quick Start
 
 ### Prerequisites
@@ -10,13 +25,23 @@ A full-stack, tenant-aware notification system for an AI-native CRM platform. Ba
 
 ### Setup & Run
 
-```bash
-# 1. Install all dependencies (root + server + client)
-npm run install:all
+1. **Install Dependencies:**
+   ```bash
+   npm run install:all
+   ```
 
-# 2. Start both server and client
-npm run dev
-```
+2. **Environment Variables:**
+   For local development, the app will fall back to a local SQLite file (`./data/notifications.db`). 
+   If you want to use your Turso remote database locally, create a `.env` file in the `server` directory:
+   ```env
+   TURSO_DATABASE_URL=libsql://your-db-url.turso.io
+   TURSO_AUTH_TOKEN=your_token
+   ```
+
+3. **Start the Application:**
+   ```bash
+   npm run dev
+   ```
 
 This starts:
 - **Backend** at `http://localhost:4000`
@@ -24,18 +49,21 @@ This starts:
 
 The database is seeded automatically on startup with 4 sample notifications.
 
-### Run Tests
+### Run Tests (Tenant Isolation)
 
 ```bash
 npm test
 ```
 
-Runs 16 tenant isolation tests verifying that users in one tenant cannot see, count, or mark-as-read notifications belonging to another tenant.
+Runs 16 tenant isolation tests. These tests mathematically **prove that a user in Tenant A cannot read, count, or mark-as-read Tenant B's notifications**, returning a 404 if they attempt to guess an ID. This satisfies the strict security requirement of the challenge.
 
-### Run Trigger Script (optional)
+### Triggers: Proving the Pipeline Fires
 
-With the server running:
+The challenge requires proving that real-world events generate notifications automatically. We built a decoupled trigger system to simulate this:
+- **Event 1:** "A new team member was invited" → Hits `POST /triggers/invite`, creating a **tenant-wide** notification (`userId: null`).
+- **Event 2:** "A creator replied" → Hits `POST /triggers/reply`, creating a **user-specific** notification.
 
+**To run the triggers locally:**
 ```bash
 # Run both triggers (invite + reply)
 node triggers/simulate.js
@@ -44,47 +72,44 @@ node triggers/simulate.js
 node triggers/simulate.js invite
 node triggers/simulate.js reply
 ```
+*Note: In the Live Demo, you can also fire these triggers directly from the UI using the "Trigger Panel" component.*
 
 ---
 
 ## Architecture
 
-### Current Local Architecture
-
-```
+```text
 ┌─────────────────────────────────────────┐
-│            Frontend (React/Vite)         │
+│            Frontend (React/Vite)        │
 │  ┌───────────┐  ┌────────────────────┐  │
-│  │ Bell Icon  │  │ Notification Panel │  │
-│  │ + Badge    │  │ (list, mark read)  │  │
+│  │ Bell Icon │  │ Notification Panel │  │
+│  │ + Badge   │  │ (list, mark read)  │  │
 │  └───────────┘  └────────────────────┘  │
-│       │ Poll 15s        │ API calls      │
-└───────┼────────────────┼────────────────┘
-        │                │
-┌───────▼────────────────▼────────────────┐
-│           Backend (Express)              │
-│  POST /notifications     (create)        │
-│  GET  /notifications     (list)          │
-│  GET  /notifications/unread-count        │
-│  PATCH /notifications/:id/read           │
-│  PATCH /notifications/read-all           │
-│  POST /triggers/invite   (demo)          │
-│  POST /triggers/reply    (demo)          │
-│                                          │
-│  Auth: X-Tenant-Id + X-User-Id headers   │
-│  DB:   SQLite (sql.js)                   │
-└──────────────────────────────────────────┘
+│       │ Poll 15s        │ API calls     │
+└───────┼─────────────────┼───────────────┘
+        │                 │
+┌───────▼─────────────────▼───────────────┐
+│           Backend (Express)             │
+│  POST /notifications     (create)       │
+│  GET  /notifications     (list)         │
+│  GET  /notifications/unread-count       │
+│  PATCH /notifications/:id/read          │
+│  PATCH /notifications/read-all          │
+│  POST /triggers/invite   (demo)         │
+│  POST /triggers/reply    (demo)         │
+│                                         │
+│  Auth: X-Tenant-Id + X-User-Id headers  │
+│  DB:   Turso (Remote SQLite)            │
+└─────────────────────────────────────────┘
 ```
 
-### Cloud Deployment Architecture (Planned)
+### Deployed Cloud Stack
 
-We are currently planning to migrate this local setup to a **100% free cloud stack**:
+This application is fully decoupled and deployed across a 100% free cloud stack:
 
-1. **Frontend:** Hosted on [Vercel](https://vercel.com).
-2. **Backend:** Hosted on [Render](https://render.com).
-3. **Database:** Migrating from local `sql.js` to [Turso](https://turso.tech) (Remote SQLite) for data persistence across cloud deployments.
-
-*Note: The codebase will be updated to decouple the frontend/backend and support this cloud architecture.*
+1. **Frontend:** Hosted on [Vercel](https://vercel.com). Communicates with the backend using the `VITE_API_URL` environment variable.
+2. **Backend:** Hosted on [Render](https://render.com) as a Node.js web service. Protects its endpoints from CORS issues using the `FRONTEND_URL` environment variable.
+3. **Database:** Hosted on [Turso](https://turso.tech), providing low-latency remote SQLite data persistence across deployments, connected via `@libsql/client`.
 
 ### Auth Convention
 
@@ -164,8 +189,10 @@ Every database query includes `tenant_id = ?` as a filter, ensuring:
 
 ### Example Request
 
+Test the live deployed API directly from your terminal:
+
 ```bash
-curl -X GET http://localhost:4000/notifications \
+curl -X GET https://notification-system-backend-spxb.onrender.com/notifications \
   -H "X-Tenant-Id: t1" \
   -H "X-User-Id: u1"
 ```
@@ -190,13 +217,19 @@ The database is seeded on startup with:
 
 ---
 
+## Assumptions Made
+As per the challenge instructions ("write down the assumption you made and move on"):
+1. **Authentication:** We assumed the `X-Tenant-Id` and `X-User-Id` headers are securely injected by an upstream API Gateway. We treat them as fully trusted in this MVP rather than validating a real JWT.
+2. **Event Processing:** We assumed that for this MVP, HTTP triggers writing directly to the database is sufficient. For a real scale production environment, this would be decoupled via a Message Broker (detailed in the Integration section below).
+
 ## How it Works
 
 The notification system consists of a backend API and a frontend React client.
-1. **Database**: A Turso (Remote SQLite) database stores notifications. Each notification has a `tenant_id` (organization) and an optional `user_id` (if the notification is directed to a specific person). If `user_id` is null, it's a team-wide notification.
+1. **Database**: A Turso (Remote SQLite) database stores notifications. Each notification has a `tenant_id` (organization) and an optional `user_id` (if the notification is directed to a specific person). 
+   - **The "Null" Logic:** If `user_id` is null, it's a team-wide notification. Our queries explicitly handle this (`WHERE tenant_id = ? AND (user_id = ? OR user_id IS NULL)`) to ensure correct visibility.
 2. **Backend**: An Express API handles creating, fetching, and updating notifications. It enforces tenant isolation on every request by requiring `X-Tenant-Id` and `X-User-Id` headers.
 3. **Frontend**: The React app (built with Vite) periodically polls the backend every 15 seconds to fetch the latest unread notifications and the unread count. It displays these in a dropdown panel attached to a bell icon.
-4. **Triggers**: Events like "Team Member Invited" or "New Reply" can be fired from the UI or via scripts. These hit the `/triggers` endpoints, which then insert new rows into the notification table.
+4. **Triggers**: Events like "Team Member Invited" or "New Reply" can be fired from the UI or via scripts. These hit the `/triggers` endpoints, which then insert new rows into the notification table, completing the end-to-end pipeline proof.
 
 ---
 
