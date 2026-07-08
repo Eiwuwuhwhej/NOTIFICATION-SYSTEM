@@ -6,10 +6,8 @@ A full-stack, tenant-aware notification system for an AI-native CRM platform. Ba
 - **Frontend (Vercel):** [https://notification-system-taupe.vercel.app](https://notification-system-taupe.vercel.app)
 - **Backend API (Render):** [https://notification-system-backend-spxb.onrender.com](https://notification-system-backend-spxb.onrender.com)
 
-### 👥 Team Members
-- [Your Name/Role]
-- [Team Member 2 Name/Role]
-- [Team Member 3 Name/Role]
+### 👥 Myself
+- [Aditi Soni - BCA]
 
 ### ✅ Challenge Deliverables Checklist
 - [x] **Runnable App**: Fully deployed cloud stack (see Live Demo) and local setup instructions below.
